@@ -1,40 +1,44 @@
 package org.example;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
 
 public class HttpServer {
 
-  public static void main(String[] args) throws IOException {
-    ServerSocket serverSocket = new ServerSocket(8080);
-    System.out.println("Server started at http://localhost:8080");
+  private final String host;
+  private final int port;
 
-    while (true) {
-      Socket clientSocket = serverSocket.accept();
-      BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-      BufferedWriter out = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
+  public HttpServer() {
+    this.host = "localhost";
+    this.port = 8080;
+  }
 
-      // Чтение запроса
-      String line;
-      while ((line = in.readLine()) != null && !line.isEmpty()) {
-        System.out.println(line);
+  public HttpServer(String host, int port) {
+    this.host = host;
+    this.port = port;
+  }
+
+  public void run() throws IOException {
+    try (var serverSocket = new ServerSocket(port, 0, InetAddress.getByName(host))) {
+      System.out.printf("Server started at %s:%d",
+          serverSocket.getInetAddress().getHostAddress(),
+          serverSocket.getLocalPort());
+
+      while (true) {
+        try (var clientSocket = serverSocket.accept();
+            var in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            var out = clientSocket.getOutputStream()) {
+
+          String firstLine;
+          if ((firstLine = in.readLine()) != null && !firstLine.isBlank()) {
+            var requestHandler = new HttpRequestHandler(out);
+            requestHandler.handleRequest(firstLine);
+          }
+        }
       }
-
-      // Простой ответ
-      String response = "<h1>Hello from server!</h1>";
-      out.write("HTTP/1.1 200 OK\r\n");
-      out.write("Content-Type: text/html; charset=UTF-8\r\n");
-      out.write("Content-Length: " + response.length() + "\r\n");
-      out.write("\r\n");
-      out.write(response);
-      out.flush();
-
-      clientSocket.close();
     }
   }
 
